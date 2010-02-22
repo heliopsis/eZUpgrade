@@ -1,0 +1,37 @@
+#!/usr/bin/php
+<?php
+
+include_once( "classes/ezupgrade.php" );
+$upgrade = new eZUpgrade;
+$account = $argv[1];
+
+// if no account name is specified
+if ( $account == '' )
+{
+	$upgrade->describeUsage();
+	exit();
+}
+
+$blockName = 'Account_'.$account;
+
+$toVersion		= $upgrade->cfg->getSetting( 'account', $blockName, 'ToVersion');
+$basePath		= $upgrade->cfg->getSetting( 'account', $blockName, 'BasePath');
+$instLoc		= $upgrade->cfg->getSetting( 'account', $blockName, 'ExistingInstallationLocation');
+
+$data = array(	'account_name'			=> $account,
+				'upgrade_to_version' 	=> $toVersion, 
+				'upgrade_base_path'		=> $basePath, 
+				'existing_install'		=> $instLoc);
+
+if ( $upgrade->checkParamsBeforeRunning( $data ) )
+{
+	$upgrade->setUpgradeData($data);
+	$upgrade->run();
+}
+else
+{
+	echo 'error';
+}
+
+
+?>
