@@ -24,7 +24,7 @@ class eZUpgrade extends eZCopy
 		$this->eZCopy();
 		
 		$this->versionList 		= false;
-		$this->manualAttentionNotificationList	= array();
+		$this->manualAttentionNotificationList	= array( 'Remember to set up the cronjobs for the upgraded site.');
 	}
 	
 	function run()
@@ -46,6 +46,9 @@ class eZUpgrade extends eZCopy
 		
 		// check requirements
 		$this->checkRequirements();
+		
+		// check if the version we are upgrading to have upgrade containers down to the version we are upgrading from 
+		$this->checkUpgradeContainer();
 		
 		// perform pre-upgrade checks
 		$this->preUpgradeChecks();
@@ -86,6 +89,7 @@ class eZUpgrade extends eZCopy
 		if($this->upgradeData['existing_install'] == 'remote')
 		{
 			$this->log("The existing installation is located remotely. We need to copy it to a local location.\n");
+			$this->checkpoint( 'Copy installation from remote location' );
 			
 			// copy existing distro from current location (use /ezcopy)
 			$this->ezcopy->actionDownloadAll($this->data['account_name']);
@@ -98,6 +102,9 @@ class eZUpgrade extends eZCopy
 		else
 		{
 			$this->log("The existing installation is located locally at " . $this->upgradeData['existing_install'] . "\n");
+			
+			// do a checkpoint
+			$this->checkpoint( 'Use existing installation: ' . $this->upgradeData['existing_install'] );
 			
 			// set the location of the old installation
 			$this->setOldInstallationPath($this->upgradeData['existing_install']);
@@ -124,10 +131,17 @@ class eZUpgrade extends eZCopy
 	{
 		return $this->oldInstallationPath;
 	}
-	
+	function oldDatabaseCleanup()
+	{
+		$this->log("Deleted database dump from the old site ");
+		$cmd = 'rm -rf ' . $this->upgradeData['existing_install']. $this->dbDumpDir;
+		exec($cmd);
+		$this->log("OK\n", 'ok');
+	}
 	function postUpgradeTasks()
 	{
 		$this->fixEzInstall($this->getNewDistroPathName());
+		$this->oldDatabaseCleanup();
 	}
 	
 	function getNewDistroPathName()
@@ -137,11 +151,19 @@ class eZUpgrade extends eZCopy
 	
 	function preUpgradeChecks()
 	{
-		$this->log('Performing pre-upgrade checks ', 'heading');
+		$this->log("Performing pre-upgrade checks ", 'heading');
 		$this->checkForDBDumps();
 		$this->log("OK\n", 'ok');
+	
 	}
-		
+	function checkUpgradeContainer()
+	{
+		$updateContainer = $this->cfg->getSetting('ezupgrade', 'Upgrade_' . $this->upgradeToVersion, 'UpgradeContainerSinceVersion');
+		if ( $this->upgradeFromVersion < $updateContainer )
+		{
+			$this->log("Can not upgrade from " . $this->upgradeFromVersion . " to " . $this->upgradeToVersion  . ". Version "  . $this->upgradeToVersion . " holds upgrade files only down to version " . $updateContainer, 'critical');
+		}
+	}
 	function checkForDBDumps()
 	{
 		if(!file_exists($this->getDBDumpLocation()))
@@ -168,6 +190,7 @@ class eZUpgrade extends eZCopy
 	
 	function validDatabaseConnectionDetails($access)
 	{
+		/*
 		if($access['User'] == 'root' OR $access['Password'] == '')
 		{
 			return false;
@@ -176,6 +199,8 @@ class eZUpgrade extends eZCopy
 		{
 			return true;
 		}
+		*/
+		return true;
 	}
 	
 	function grantAccessToNewDatabases()
@@ -240,6 +265,7 @@ class eZUpgrade extends eZCopy
 	
 	function manualAttentionNotice()
 	{
+		$this->manualAttentionNotificationList[] = "The log file is locateded in lib/ezcopy/logs/";
 		// looping through the notification list to make output with manual attenions notices.
 		foreach ( $this->manualAttentionNotificationList as $notification )
 		{
@@ -259,32 +285,49 @@ class eZUpgrade extends eZCopy
 		{
 			$this->log("Running upgrades for v. $version\n", 'heading');
 			
-			// for each upgrade function
-			foreach($upgradeStep['UpgradeFunctions'] as $upgrade)
+			// checkpoint
+			$this->checkpoint( 'Upgrades for v. ' . $version );
+			
+			// check if the UpgradeFunctions key is in the UpgradeStep
+			if ( array_key_exists( 'UpgradeFunctions', $upgradeStep ) )
 			{
-				// fetch upgrade function and lowest version number which does not require the upgrade
-				list($upgradeFunction, $lowestVersionNotInNeedOfUpgrade) = explode(";", $upgrade);
-				
-				$this->log('Upgrade function ' . $upgradeFunction . " ");
-				
-				// make sure that function should be run (depending on the version
-				// set in the INI file)
-				$runUpgrade = true;
-				
-				if($lowestVersionNotInNeedOfUpgrade AND version_compare($this->upgradeFromVersion, $lowestVersionNotInNeedOfUpgrade, '>'))
+				// for each upgrade function			
+				foreach($upgradeStep['UpgradeFunctions'] as $upgrade)
 				{
-					$runUpgrade = false;	
-				}
-				
-				if($runUpgrade)
-				{
-					// run upgrade function
-					$this->log("run\n");
-					$upgradeFunctions->$upgradeFunction();
-				}
-				else
-				{
-					$this->log("not run\n");
+					// fetch upgrade function and lowest version number which does not require the upgrade
+					$parts 				= explode(";", $upgrade);
+					$upgradeFunction 	= $parts[0];
+					
+					if(isset($parts[1]))
+					{
+						$lowestVersionNotInNeedOfUpgrade = $parts[1];
+					}
+					else
+					{
+						$lowestVersionNotInNeedOfUpgrade = false;
+					}
+								
+					$this->log('Upgrade function ' . $upgradeFunction . " ");
+					
+					// make sure that function should be run (depending on the version
+					// set in the INI file)
+					$runUpgrade = true;
+					
+					if($lowestVersionNotInNeedOfUpgrade AND version_compare($this->upgradeFromVersion, $lowestVersionNotInNeedOfUpgrade, '>'))
+					{
+						$runUpgrade = false;	
+					}
+					
+					if($runUpgrade)
+					{
+						// run upgrade function
+						$this->log("run\n");
+						$upgradeFunctions->$upgradeFunction();
+					}
+					else
+					{
+						$this->log("not run\n");
+					}
 				}
 			}
 		}
@@ -565,11 +608,11 @@ class eZUpgrade extends eZCopy
 			$elementExists = false;
 			// check if the element exists in the new distro
 			$target = $this->getNewDistroFolderName() . $dir . $element;
-			if(file_exists($this->data['document_root'] . $target))
+			if(file_exists($target))
 			{
 				$elementExists = true;	
 			}
-			
+
 			$copyElement = true;
 			
 			// if the element exists in the new distro
@@ -604,7 +647,7 @@ class eZUpgrade extends eZCopy
 		$this->output->formats->question->color = 'yellow';
 
 		$question = new ezcConsoleQuestionDialog( $this->output );
-		$question->options->text = "The element $target already exists. Do you want to override it?";
+		$question->options->text = "The element $target already exists on the new installation. Do you want to override it?";
 		$question->options->format = 'question';
 		$question->options->showResults = true;
 		$question->options->validator = new ezcConsoleQuestionDialogCollectionValidator(
@@ -623,7 +666,6 @@ class eZUpgrade extends eZCopy
 			return false;
 		}
 	}
-	
 	function downloadAndUnpackDistro()
 	{
 		// set distro file name
@@ -655,6 +697,9 @@ class eZUpgrade extends eZCopy
 			}
 			else
 			{
+				// do a checkpoint
+				$this->checkpoint( 'Copying distro', 'Distro to copy: ' . $distroFile );
+				
 				// copy distro from distro location
 				$cmd = 'cp \'' . $distroFile . '\' ' . $this->upgradeData['upgrade_base_path'] . $filename;
 								
@@ -667,10 +712,15 @@ class eZUpgrade extends eZCopy
 		// if no distro location is specified
 		else
 		{
-			$this->log("Downloading distro ($filename)");
+			$this->log("Downloading distro ($filename)\n");
+
+			// do a checkpoint
+			$this->checkpoint( 'Downloadind distro' );
+
 			// download the file
 			$command = "curl -s -o $filename " .  $this->upgradeVersionSettings['DownloadURL'] . " 2>&1";
 			exec($command, $output, $rc);
+		
 			if ( $rc ) die("Error downloading file:<br>" . implode("<br>", $output));
 			
 			$this->log("OK\n", 'ok');
@@ -694,8 +744,8 @@ class eZUpgrade extends eZCopy
 		// exec($cmd, $output, $rc);
 		// if ( $rc ) print("WARNING: failed to chown $folder_name<br>");
 		
-		// remove the file
-		unlink($filename);
+		// remove the distro file
+		unlink($this->upgradeData['upgrade_base_path'] . $filename);
 		
 		// change back to old dir
 		chdir($old_dir);
@@ -754,7 +804,11 @@ class eZUpgrade extends eZCopy
 					$upgradeContainerVersionPosition = $this->getVersionPosition($upgradeContainerSinceVersion);
 					if($upgradeContainerVersionPosition > $currentVersionPosition)
 					{
-						$this->log('Upgrading ' . $this->upgradeData['account_name'] . ' to version ' . $versionNo . "\n");
+						$this->log('Upgrading ' . $this->upgradeData['account_name'] . ' from version ' . $this->upgradeFromVersion . ' to version ' . $versionNo . "\n");
+						
+						// do a checkpoint
+						$this->checkpoint( 'Check on upgrade to version: ' . $versionNo );
+						
 						$this->upgradeToVersion = $versionNo;
 						return;
 					}

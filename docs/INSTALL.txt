@@ -75,8 +75,6 @@ INSTALLATION
 
 * chmod 777 ezupgrade
 
-* chmod 777 logs/
-
 
 USAGE
 

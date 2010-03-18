@@ -17,21 +17,41 @@ class upgradeFunctions
 	
 	function runScript($script)
 	{
-		$this->upgrade->log("Running script $script ");
-		
-		exec("cd " . $this->upgrade->getNewDistroFolderName() . ";php " . $script);
-		
-		$this->upgrade->log("OK\n", 'ok');
+		$siteAccessList = $this->upgrade->upgradeData['siteaccess_list'];
+		if ( is_array( $siteAccessList ) )
+		{
+			foreach( $siteAccessList as $siteaccess )
+			{
+				$this->upgrade->log("Running script $script ");
+				
+				$this->upgrade->checkpoint( 'Running script: ' . $script );
+				
+				exec("cd " . $this->upgrade->getNewDistroFolderName() . ";php " . $script . " -s" . $siteaccess . " -siteaccess " . $siteaccess);
+				$this->upgrade->log("OK\n", 'ok');
+			}
+		}
 	}
 	
+	function updateCharsetDBu40()
+	{	
+		$siteAccessList = $this->upgrade->upgradeData['siteaccess_list'];
+		if ( is_array( $siteAccessList ) )
+		{
+			foreach( $siteAccessList as $siteaccess )
+			{
+				$this->runScript('bin/php/ezconvertdbcharset.php -s ' . $siteaccess);		
+			}
+		}
+	}
 	function manualAttention($msg)
 	{
 		$this->attention[] = $msg;
-		echo $msg . "\n";
+		$this->manualAttentionNotificationList[] = $msg;
 	}
 	
 	function updateDB($sql, $useBasePath = true)
 	{
+		
 		if($useBasePath)
 		{
 			$sql = $this->upgrade->getNewDistroFolderName() . $sql;
@@ -47,62 +67,82 @@ class upgradeFunctions
 			$this->upgrade->applyDatabaseSql($newDBName, $sql);
 		}
 	}
-	
-	function updateDB420u410()
+	function updateDB3101()
 	{
-		$sql = 'sql/4.2/to-4.2.0-under-4.1.0.sql';
-		$this->upgrade->manualAttentionNotificationList[] = 'You need to activate the ezoe extension';
-		$this->upgrade->manualAttentionNotificationList[] = 'If you have custome made extensions, the setting ModuleList[] must be added in module.ini.append.php, with list of each module.';
+		$sql = 'sql/3.10/3.10.1.sql';
 		$this->updateDB($sql, false);
 	}
-	function updateDB420u404()
+	function updateDB401()
 	{
-		$sql = 'sql/4.2/to-4.2.0-under-4.0.4.sql';
+		$sql = 'sql/4.0/4.0.1.sql';
+		$this->updateDB($sql, false);
+	}
+	function updateDB402()
+	{
+		$sql = 'sql/4.0/4.0.2.sql';
+		$this->updateDB($sql, false);
+	}
+	function updateDB403()
+	{
+		$sql = 'sql/4.0/4.0.3.sql';
+		$this->updateDB($sql, false);
+	}
+	function updateDB404()
+	{
+		$sql = 'sql/4.0/4.0.4.sql';
+		$this->updateDB($sql, false);
+	}
+	function updateDB405()
+	{
+		$sql = 'sql/4.0/4.0.5.sql';
+		$this->updateDB($sql, false);
+	}
+	function updateDB406()
+	{
+		$sql = 'sql/4.0/4.0.6.sql';
 		$this->updateDB($sql, false);
 	}
 	function updateDB407()
 	{
-		$sql = $this->dbBasePath . $this->dbType . '/4.1/dbupdate-4.0.6-to-4.0.7.sql';
-		$this->updateDB( $sql );	
+		$sql = 'sql/4.0/4.0.7.sql';
+		$this->updateDB($sql, false);
+	}
+	function updateDB410()
+	{
+		$sql = 'sql/4.1/4.1.0.sql';
+		$this->updateDB($sql, false);
+	}
+	function updateDB411()
+	{
+		$sql = 'sql/4.1/4.1.1.sql';
+		$this->updateDB($sql, false);
+	}
+	function updateDB412()
+	{
+		$sql = 'sql/4.1/4.1.2.sql';
+		$this->updateDB($sql, false);
+	}	
+	function updateDB413()
+	{
+		$sql = 'sql/4.1/4.1.3.sql';
+		$this->updateDB($sql, false);
+	}	
+	function updateDB414()
+	{
+		$sql = 'sql/4.1/4.1.4.sql';
+		$this->updateDB($sql, false);
 	}
 	function updateDB420()
 	{
-		$sql = 'sql/4.2/to-4.2.0.sql';
+		$sql = 'sql/4.2/4.2.0.sql';
 		$this->updateDB($sql, false);
-	}
-	
-	
-	function updateDB411()
-	{
-		$sql = $this->dbBasePath . $this->dbType . '/4.1/dbupdate-4.1.0-to-4.1.1.sql';
-		$this->updateDB($sql);
-	}
-	
-	function updateDB412()
-	{
-		$sql = $this->dbBasePath . $this->dbType . '/4.1/dbupdate-4.1.1-to-4.1.2.sql';
-		$this->updateDB($sql);
-	}
-	function updateDB414()
-	{
-		$sql = $this->dbBasePath . $this->dbType . '/4.1/dbupdate-4.1.3-to-4.1.4.sql';
-		$this->updateDB($sql);
-	}
-	function updateDB413()
-	{
-		$sql = $this->dbBasePath . $this->dbType . '/4.1/dbupdate-4.1.2-to-4.1.3.sql';
-		$this->updateDB($sql);
-	}
-	function updateDB402()
-	{
-		$sql = $this->dbBasePath . $this->dbType . '/4.2/dbupdate-4.1.0-to-4.2.0.sql';
-		$this->updateDB( $sql );
 	}
 	function updateDBOE501()
 	{
 		$sql = '/extension/ezoe/update/database/5.0/dbupdate-5.0.0-to-5.0.1.sql';
 		$this->updateDB($sql);
 	}
+
 	function updateOERewriteRules()
 	{
 		$this->manualAttention('Add to rewrite rules: RewriteRule ^/var/[^/]+/cache/public/.* - [L]');
