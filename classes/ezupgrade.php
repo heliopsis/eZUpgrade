@@ -339,7 +339,14 @@ class eZUpgrade extends eZCopy
 					{
 						// run upgrade function
 						$this->log("run\n");
-						$upgradeFunctions->$upgradeFunction();
+						if ( $upgradeFunction == 'updateDBForVersion' )
+						{
+							$upgradeFunctions->updateDBForVersion( $version );	
+						}
+						else
+						{
+							$upgradeFunctions->$upgradeFunction();
+						}
 					}
 					else
 					{
@@ -546,41 +553,40 @@ class eZUpgrade extends eZCopy
 		}
 		return $result;
 	}
-	
 	function updateDBConnections()
 	{
 		foreach( $this->getSiteIniFiles() as $iniFile )
 		{
-				// get instance of current ini file
-				$ini = $this->iniInstance($iniFile);
-				
-				$oldDBName = false;
-				// get current db name
-				
-				if ( $ini->hasVariable( 'DatabaseSettings', 'Database' ) )
+			// get instance of current ini file
+			$ini = $this->iniInstance($iniFile);
+			
+			$oldDBName = false;
+			// get current db name
+			
+			if ( $ini->hasVariable( 'DatabaseSettings', 'Database' ) )
+			{
+				$oldDBName = $ini->variable('DatabaseSettings', 'Database');
+			}
+			
+			// provided that the INI file has a database name set
+			if($oldDBName !== false )
+			{
+				if ( $this->fetchUpgradeToVersion() > '3.10.1' )
 				{
-					$oldDBName = $ini->variable('DatabaseSettings', 'Database');
+					// set new database name
+					$ini->setVariable('DatabaseSettings', 'Database', $this->createNewDBName($oldDBName));
+					// save changes in ini file
+					if(!$ini->save() )
+					{
+						$this->checkpoint('updateDBConnections()', 'Please change your database name in ' . $iniFile, true);
+					}
+				}
+				else
+				{
+					$this->checkpoint('updateDBConnections()', "The file '" . $iniFile . "' need to be altered to use database '" . $this->createNewDBName($oldDBName) . "' and then clear the cache.", true);
 				}
 				
-				// provided that the INI file has a database name set
-				if($oldDBName !== false )
-				{
-					if ( $this->fetchUpgradeFromVersion() > '3.10.1' AND $this->fetchUpgradeToVersion() > '3.10.1' )
-					{
-						// set new database name
-						$ini->setVariable('DatabaseSettings', 'Database', $this->createNewDBName($oldDBName));
-						// save changes in ini file
-						if(!$ini->save() )
-						{
-							//$this->log("Unable to store changes to INI file.\n", 'critical');
-						}
-					}
-					else
-					{
-						$this->manualAttentionNotificationList[] = "The file '" . $iniFile . "' need to be altered to use database '" . $this->createNewDBName($oldDBName) . "' and then clear the cache.";
-					}
-					
-				}
+			}
 		}
 		$this->log( "end of updateDBConnections()\n" );
 	}
