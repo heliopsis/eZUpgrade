@@ -636,8 +636,9 @@ class eZUpgrade extends eZCopy
 	
 	function promptFileOverride($dir)
 	{
+		
 		$elementList = $this->fetchFolderContents($dir);
-
+		
 		// for each element
 		foreach($elementList as $element)
 		{
@@ -686,6 +687,21 @@ class eZUpgrade extends eZCopy
 	
 	function userWantsToOverrideElement($target)
 	{
+		// setting default action
+		$option = 'prompt';
+		
+		// check if there is set any default prompt option, and set this to the option
+		if ( $this->cfg->getSetting('account', 'Accounts', 'DefaultPromptOption') )
+		{
+			$option	 = $this->cfg->getSetting('account', 'Accounts', 'DefaultPromptOption');
+		}
+		
+		// if the ini file say that we alway should answear the prompt with the default answer we return false
+		if ( $option == 'use_default' )
+		{
+			return false;
+		}
+		
 		$this->output->formats->question->color = 'yellow';
 
 		$question = new ezcConsoleQuestionDialog( $this->output );
