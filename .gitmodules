@@ -1,0 +1,3 @@
+[submodule "lib/ezcopy"]
+	path = lib/ezcopy
+	url = git@github.com:Heliopsis-HQ/eZCopy.git
