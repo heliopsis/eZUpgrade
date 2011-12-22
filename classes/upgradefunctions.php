@@ -6,7 +6,7 @@ class upgradeFunctions
 	var $dbBasePath;
 	var $dbType;
 	var $upgrade;
-	
+
 	function upgradeFunctions(&$upgrade)
 	{
 		$this->attention 	= array();
@@ -14,7 +14,7 @@ class upgradeFunctions
 		$this->dbType		= 'mysql';
 		$this->upgrade		= $upgrade;
 	}
-	
+
 	function runScript($script, $version=5)
 	{
 		$phpCli = $this->upgrade->getPathToPHP( $version );
@@ -24,9 +24,9 @@ class upgradeFunctions
 			foreach( $siteAccessList as $siteaccess )
 			{
 				$this->upgrade->log("Running script $script  -s" . $siteaccess);
-				
+
 				$this->upgrade->checkpoint( 'Running script: ' . $script );
-				
+
 				exec("cd " . $this->upgrade->getNewDistroFolderName() . ";".$phpCli." " . $script . " -s" . $siteaccess);
 				$this->upgrade->log("OK\n", 'ok');
 			}
@@ -55,18 +55,18 @@ class upgradeFunctions
 	}
 	function updateDB($sql, $useBasePath = true)
 	{
-		
+
 		if($useBasePath)
 		{
 			$sql = $this->upgrade->getNewDistroFolderName() . $sql;
 		}
-		
+
 		// for each database
 		$dbList = $this->upgrade->fetchDbList();
 		foreach($dbList as $db)
 		{
 			$newDBName = $this->upgrade->createNewDBName( $db['Database']);
-			
+
 			// apply db dump
 			$this->upgrade->applyDatabaseSql($newDBName, $sql);
 		}
@@ -87,7 +87,7 @@ class upgradeFunctions
 	{
 		$this->manualAttention('Add to rewrite rules: RewriteRule ^/var/[^/]+/cache/public/.* - [L]');
 	}
-	
+
 	function updateImageSystem()
 	{
 		$this->manualAttention('If you have an eZP version which used to be older than 3.3, please run the updateimagesystem.php script manually.');
@@ -108,14 +108,14 @@ class upgradeFunctions
 		$this->manualAttention('ezi18n(), ezx18n(), imageInit(), templateInit(), removeAssignment()');
 		$this->manualAttention('Make sure that the patch http://issues.ez.no/IssueView.php?Id=16814&activeItem=5 is appended to the version' );
 	}
-	
+
     public function upgrade440Notice()
 	{
 		$this->manualAttention('Please check Backward compatibility docs in doc/bc/4.4');
 		$this->manualAttention('Add rewriterule RewriteRule ^/extension/[^/]+/design/[^/]+/(stylesheets|images|javascripts?|lib|flash)/.* - [L]');
 		$this->manualAttention('Remember to activate the ezie extension for the new image editor');
 	}
-	
+
 	function generateAutoLoads()
 	{
 		$script = 'bin/php/ezpgenerateautoloads.php --extension';
@@ -129,21 +129,22 @@ class upgradeFunctions
 	function upgradeScripts41()
 	{
 		$scriptList = array('addlockstategroup.php',
-							'fixclassremoteid.php',
+							'fixclassremoteid.php --mode=a',
 							'fixezurlobjectlinks.php',
 							'fixobjectremoteid.php --mode=a',
-							'initurlaliasmlid.php');
+							'initurlaliasmlid.php',
+							'correctxmlalign.php');
 
 		foreach($scriptList as $script)
 		{
 			$this->runScript('update/common/scripts/4.1/' . $script);
 		}
-				
+
 		$this->manualAttention('You need to deactivate the extension ezdhtml and activate the extension ezoe to get the new editor to work.');
 		$this->manualAttention('You also need to add the rewrite rule: RewriteRule ^/var/[^/]+/cache/public/.* - [L]' );
-		
+
 	}
-	
+
 	public function upgradeScripts44()
 	{
 	    $scriptList = array('updatesectionidentifier.php');
@@ -153,7 +154,7 @@ class upgradeFunctions
 			$this->runScript('update/common/scripts/4.4/' . $script);
 		}
 	}
-	
+
 	function upgradeScripts43()
 	{
 		$scriptList = array('updatenodeassignment.php');
@@ -226,9 +227,9 @@ class upgradeFunctions
 		ShowUntranslatedObjects=enabled\n
 		\n
 		Please do this changes before you proceed.", true );
-		
+
 		$this->upgrade->checkpoint('upgradeScripts380()', 'Please change your database name in the given siteaccess in account.ini', true);
-		
+
 		$siteAccessList = $this->upgrade->upgradeData['siteaccess_list'];
 		if ( is_array( $siteAccessList ) )
 		{
